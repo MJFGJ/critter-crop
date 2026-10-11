@@ -16000,6 +16000,21 @@ class Game {
       return;
     }
 
+    // One-time first-night tutorial beat (account-wide, like the level-up
+    // beats): Samwise explains Critterslinging as the Sludge Critters arrive.
+    if (!this.isDemo && !this.milestones.tutorial.has('firstNight')) {
+      this.milestones.tutorial.add('firstNight');
+      this.onSamwise(
+        "Uh oh, the sun's going down... At night Sludge Critters ooze up out of the ground, and they'll chew on "
+        + "your critters if you let them! Don't worry, the critters that live in your patch can fight back. Click and "
+        + 'hold on one of them, pull back like a slingshot, and let go to fling them at a Sludge Critter. The further '
+        + 'you pull back, the harder they hit, but it uses up more of their energy. Every Sludge Critter they take '
+        + 'down makes them a little stronger, so keep them fed to keep their energy up. Hang in there, the Sludge '
+        + 'sinks back underground when the sun comes up!',
+      );
+      this._emitXpChange(); // saves the tutorial flag to the profile
+    }
+
     for (const zombie of this.zombies) {
       zombie.update(dt, this.world, this.critters);
       if (zombie._lastBiteTarget) {
