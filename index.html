@@ -1603,6 +1603,11 @@ button.cauldron-slot:focus-visible {
   pointer-events: none;
 }
 
+/* Samwise's messages are written in short paragraphs (\n\n) -- keep the breaks in the log tab too. */
+.samwise-log-entry {
+  white-space: pre-line;
+}
+
 .samwise-text {
   position: absolute;
   left: 114px;
@@ -14838,11 +14843,14 @@ class Game {
     const radishId = seedItemId(CropType.RADISH);
     this.addItem(daisyId, TUTORIAL_SEED_COUNT);
     this.addItem(radishId, TUTORIAL_SEED_COUNT);
-    this.onLog(`Samwise dropped ${TUTORIAL_SEED_COUNT} daisy seeds and ${TUTORIAL_SEED_COUNT} radish seeds into your backpack!`);
+    this.onLog(`Samwise gave you ${TUTORIAL_SEED_COUNT} daisy seeds and ${TUTORIAL_SEED_COUNT} radish seeds!`);
     this.onSamwise(
-      "The Sunbun has moved in, notice the color change. andddddd...You've leveled up! This is great news. "
-      + "I'm going to put a couple different seeds into your backpack. Why don't you try growing them. Don't worry if "
-      + 'things don\'t pan out. Just click the Samwise button in the bottom right to get a couple more seeds.',
+      "The Sunbun moved in! Critters that live here get their full colors and stay for good. Andddd... you "
+      + 'leveled up!\n\n'
+      + "Here are some daisy and radish seeds. To grow them, pick a seed in your hotbar and click a dirt tile to "
+      + "plant it. Then water it with the Watering Can. Keep it watered while it grows, or it will dry out!\n\n"
+      + 'Blooming plants bring new critters to visit. If you run out of seeds before anything blooms, click my '
+      + 'button in the top right corner for a few more.',
     );
   }
 
@@ -15880,6 +15888,25 @@ class Game {
         this.onLog(`${critter.name} healed ${critter._lastHealed} HP!`);
         critter._lastHealed = null;
       }
+      // One-time tutorial beat (account-wide): the first critter to hit the
+      // Level 9 wall learns about evolution crops -- see Critter.gainCombatXp.
+      if (!this.isDemo && !this.milestones.tutorial.has('evolveTip') && critter.isResident() && critter.isAwaitingEvolution()) {
+        this.milestones.tutorial.add('evolveTip');
+        const spec = SPECIES[critter.species];
+        const missing = spec.evolutionCatalystCrops
+          .filter((cropType) => !critter._eatenCatalystCrops.has(cropType))
+          .map((cropType) => CROPS[cropType].displayName);
+        const crops = missing.length > 1 ? `${missing.slice(0, -1).join(', ')} and ${missing[missing.length - 1]}` : missing[0];
+        this.onSamwise(
+          `${critter.name} has reached Level 9 and is ready to evolve, but there's one more step!\n\n`
+          + 'Before a critter can reach Level 10, it has to eat its evolution crops. '
+          + `${critter.name} still needs to eat: ${crops}. Grow some, harvest them with the Cursor, then pick one in `
+          + `your hotbar and click ${critter.name} to feed it.\n\n`
+          + `Once it has eaten them all, it will evolve into a ${spec.evolvedDisplayName}! You can check what any `
+          + 'critter still needs in its details (double-click it).',
+        );
+        this._emitXpChange(); // saves the tutorial flag to the profile
+      }
       if (critter._lastEvolved) {
         const msg = `${critter.name} evolved into ${critter.displayName()}!`;
         this.onLog(msg);
@@ -16006,11 +16033,11 @@ class Game {
       this.milestones.tutorial.add('firstNight');
       this.onSamwise(
         "Uh oh, the sun's going down... At night Sludge Critters ooze up out of the ground, and they'll chew on "
-        + "your critters if you let them! Don't worry, the critters that live in your patch can fight back. Click and "
-        + 'hold on one of them, pull back like a slingshot, and let go to fling them at a Sludge Critter. The further '
-        + 'you pull back, the harder they hit, but it uses up more of their energy. Every Sludge Critter they take '
-        + 'down makes them a little stronger, so keep them fed to keep their energy up. Hang in there, the Sludge '
-        + 'sinks back underground when the sun comes up!',
+        + 'the critters living in your patch!\n\n'
+        + 'Your critters can fight back. Click and hold on one, pull back like a slingshot, and let go to fling it '
+        + 'at a Sludge Critter. Pull back further for a harder hit, but it costs more energy.\n\n'
+        + 'To restore energy, feed them: pick a harvested plant in your hotbar and click the critter. Every Sludge '
+        + 'Critter they beat makes them stronger. Hang in there, the Sludge sinks back underground at sunrise!',
       );
       this._emitXpChange(); // saves the tutorial flag to the profile
     }
@@ -16118,8 +16145,11 @@ class Game {
       this._recordVisitMilestone(critter);
       if (isFirstSunbunVisit) {
         this.onSamwise(
-          "Hey look at that a Sunbun has arrived it must like that you cleared out the debris in your Critterpatch. "
-          + "Try clicking double clicking on it to see if there's anything else they need in order to move in!",
+          "Look, a Sunbun hopped in! Clearing out that junk did the trick.\n\n"
+          + "Visitors only stay if your patch has what they need. Double-click the Sunbun to see its details, "
+          + 'including what it takes to move in.\n\n'
+          + 'Sunbuns like farmland. Use the Shovel on grass to till it into dirt (you can click and drag to till a '
+          + 'whole row). Once there are 5 dirt tiles, it will move in!',
         );
       }
     } else if (next === CritterState.RESIDENT) {
@@ -16360,11 +16390,11 @@ class Game {
     if (this.level >= GENERAL_STORE_UNLOCK_LEVEL && !this.milestones.tutorial.has('generalStore')) {
       this.milestones.tutorial.add('generalStore');
       this.onSamwise(
-        "Great! LVL 3 and your flowers have grown! Flowers and other plants help attract critters to your patch. "
-        + "You can also harvest your flowers using your cursor tool. The harvested crop will be put in your backpack. "
-        + 'Flowers and produce can also be good for selling at the general store which conveniently is now open! if '
-        + 'you click on the path at the top of your patch you will visit town where you can visit the shoppes. These '
-        + 'shoppes are where you will purchase seeds and whatever else you need to build up your Critterpatch from now on.',
+        "Level 3, and look at those flowers! Blooming plants are what bring new critters to visit.\n\n"
+        + 'You can also harvest them. Pick the Cursor and click a blooming plant to collect it. Harvested plants '
+        + 'are food for your critters, ingredients, and things to sell.\n\n'
+        + 'Speaking of selling, the General Store in town is open! Click the path at the top of your patch to walk '
+        + 'to town. Buy new seeds there and sell your harvest for coins.',
         () => this._grantXp('General Store Unlocked', XP_GENERAL_STORE_UNLOCK, MilestoneCategory.INFRASTRUCTURE),
       );
     }
@@ -16372,20 +16402,23 @@ class Game {
     if (this.level >= 4 && !this.milestones.tutorial.has('lv4Tip')) {
       this.milestones.tutorial.add('lv4Tip');
       this.onSamwise(
-        "Wow LVL 4 your're doing great. I just want to point out that there is a log and journal buttons in the top "
-        + 'left of you screen. These are great for keeping track of happenings in your Patch. The journal will also '
-        + 'keep track of Critter statistics and Plant research so be sure to check it out, there might be some '
-        + 'helpful nuggets of knowledge.',
+        "Level 4, you're doing great! Here's a quick tour of the panels on either side of your patch.\n\n"
+        + 'Left: the Log of everything happening here, everything I have told you, and your Milestones. Milestones '
+        + 'are how your patch earns XP and levels up.\n\n'
+        + 'Right: the critters living here, your Critter Dex, your Flora and your Tonics. The Dex shows what each '
+        + 'critter needs to visit and move in, so check it whenever you are wondering who to attract next!',
       );
     }
 
     if (this.level >= WITCH_SHOP_UNLOCK_LEVEL && !this.milestones.tutorial.has('witchShop')) {
       this.milestones.tutorial.add('witchShop');
       this.onSamwise(
-        "Hey look at that Lvl 5! The Witches Shoppe is now open. She can teach you valuable spells to help your "
-        + 'critters multiply. The nature of Critterpatches only allow for up to two critters of the same kind to '
-        + 'move-in naturally. If you want more than two you will have to complete the summoning ritual for that '
-        + "species! Its easy! Just go to the witch and she will teach you the spells you need.",
+        "Level 5! The Witch's Shoppe in town is open.\n\n"
+        + 'Critters will only move in on their own up to two of each kind. For more, you need a summoning ritual. '
+        + "Visit the Witch and she'll give you a Wand and teach you the Sunbun spell for free.\n\n"
+        + 'How a ritual works: learn the spell, then feed two residents of that kind the snack it needs (their '
+        + 'details show what). Pick the Wand and click both of them. They meet up and leave an egg that hatches '
+        + 'into a new critter!',
         () => this._grantXp('Witches Shoppe Unlocked', XP_WITCH_SHOP_UNLOCK, MilestoneCategory.INFRASTRUCTURE),
       );
     }
@@ -16395,10 +16428,12 @@ class Game {
     if (this.level >= CAULDRON_UNLOCK_LEVEL && !this.milestones.tutorial.has('cauldron')) {
       this.milestones.tutorial.add('cauldron');
       this.onSamwise(
-        "Woah LVL 7! The Witch just set up a cauldron at her Shoppe. You can mix plants you've harvested together "
-        + 'to brew tonics! Tonics change the color of your critters, but be warned, not every critter likes every '
-        + "tonic. I'm also giving you this Recipe Book. It's the Tonics tab on the right, and it will keep track of every tonic "
-        + "you discover. Go experiment, you never know what you'll cook up!",
+        "Woah, level 7! The Witch set up a cauldron in her Shoppe.\n\n"
+        + "Open the Cauldron tab, drop 2 harvested plants into the slots, and hold Brew. If it's a real recipe, "
+        + "you'll get a tonic. Click it to take it. A mix that isn't a recipe fizzles and the plants are lost.\n\n"
+        + 'Pick a tonic in your hotbar and click a critter living here to change its color. Not every critter '
+        + "likes every tonic, but a refused tonic isn't used up. Every tonic you find goes in your Recipe Book, the "
+        + 'Tonics tab on the right.',
       );
       this.onLog("Samwise gave you the Recipe Book! Check the Tonics tab on the right.");
       this._emitXpChange();
@@ -17344,9 +17379,11 @@ function sendSamwiseMessage(text, onDismiss) {
   profile.samwiseLog.push({ text, at: Date.now() });
   saveProfile(profile);
   samwiseModalTextEl.textContent = text;
-  samwiseModalTextEl.scrollTop = 0;
   samwiseDismissCallback = onDismiss || null;
   showModal(samwiseModal); // pauses time until closed -- see syncPause
+  // Back to the first line only once the box is showing -- scrolling a
+  // hidden element is ignored, which left a new message opening partway down.
+  samwiseModalTextEl.scrollTop = 0;
   if (leftTab === 'samwise') renderSamwiseLog();
 }
 
@@ -17381,7 +17418,7 @@ function renderSamwiseLog() {
   const lines = profile.samwiseLog.length ? profile.samwiseLog.map((e) => e.text) : ["Samwise hasn't said anything yet."];
   for (const text of lines) {
     const el = document.createElement('p');
-    el.className = 'log-entry';
+    el.className = 'log-entry samwise-log-entry';
     el.textContent = text;
     samwiseLogListEl.appendChild(el);
   }
@@ -19460,9 +19497,11 @@ document.getElementById('new-garden-btn').addEventListener('click', () => {
       profile.hasSeenIntro = true;
       saveProfile(profile);
       sendSamwiseMessage(
-        "Welcome to Critter Crop! My name is Samwise. I will pop up from time to time to give you some pointers as you "
-        + "progress. For right now I've supplied you some tools to help you start. Why don't you use your shovel to "
-        + 'clean the junk in your Critterpatch.',
+        "Welcome to Critter Crop! I'm Samwise, and I'll pop up now and then with pointers.\n\n"
+        + 'Your tools are in the hotbar at the bottom: the Cursor, the Shovel and the Watering Can. Click a slot or '
+        + 'press its number key to switch.\n\n'
+        + "First things first, this patch is a mess! Pick the Shovel and click each pile of junk a few times to clear "
+        + "it away. Critters won't come by until it's tidy.",
       );
     }
   });
