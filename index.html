@@ -371,6 +371,14 @@ body {
   gap: 10px;
 }
 
+/* The active profile's name, on a wide Menu Button that opens the Profiles list. */
+.settings-profile-btn {
+  padding: 0 10px 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 /* A dark pixel track with an orange square thumb (the Menu Button colors). */
 .volume-slider {
   -webkit-appearance: none;
@@ -436,6 +444,110 @@ body {
 }
 
 .settings-popup .settings-buttons { top: 192px; }
+
+/* --- profiles ----------------------------------------------------------------
+   The confirmation frame stretched to native 176x140 (icons.js's
+   profilesFrame), listing every profile on the title screen's Garden Slot
+   art. Above Settings, which opens it; the name prompt and the confirmation
+   it raises sit above both. */
+.profiles-overlay { z-index: 45; }
+.name-overlay { z-index: 55; }
+
+.profiles-popup {
+  position: relative;
+  width: 352px;
+  height: 280px;
+  background-repeat: no-repeat;
+  background-size: 352px 280px;
+  image-rendering: pixelated;
+  font-family: 'Monogram', 'Courier New', monospace;
+}
+
+.profile-list {
+  position: absolute;
+  left: 46px;
+  top: 52px;
+  width: 240px;
+  height: 160px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.profile-list-scrollbar {
+  left: 292px;
+  top: 52px;
+  height: 160px;
+}
+
+/* The playing profile's row: not a button to switch to, and can't be deleted. */
+.garden-slot.current .garden-slot-play {
+  cursor: default;
+}
+
+.garden-slot.current .garden-slot-play:hover {
+  filter: none;
+}
+
+.garden-slot.current .garden-slot-date {
+  color: #fcd74b;
+}
+
+.profiles-popup .profiles-buttons { top: 226px; }
+
+/* --- name prompt ----------------------------------------------------------------
+   The confirmation frame as drawn, the pencil icon in its tab, a pixel text box. */
+.name-popup {
+  position: relative;
+  width: 352px;
+  height: 200px;
+  background-repeat: no-repeat;
+  background-size: 352px 200px;
+  image-rendering: pixelated;
+  font-family: 'Monogram', 'Courier New', monospace;
+}
+
+.name-popup-pencil {
+  width: 32px;
+  height: 32px;
+  background-repeat: no-repeat;
+  background-size: 32px 32px;
+  image-rendering: pixelated;
+}
+
+.name-popup-title {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  top: 52px;
+  text-align: center;
+  color: #ffffff;
+}
+
+.name-popup-input {
+  position: absolute;
+  left: 36px;
+  top: 88px;
+  width: 280px;
+  height: 40px;
+  padding: 0 10px;
+  border: 2px solid #282d25;
+  border-radius: 0;
+  background: #3c4337;
+  box-shadow: inset 0 2px #282d25;
+  font-family: 'Monogram', 'Courier New', monospace;
+  font-size: 28px;
+  color: #e8ddbf;
+  outline: none;
+}
+
+.name-popup-input:focus-visible {
+  border-color: #f09628;
+}
+
+.name-popup .name-popup-buttons { top: 148px; }
 
 /* --- garden HUD -------------------------------------------------------------
    Figma "Coin Hud" (4370:484, top-left) and "Clock Hud" (4447:1343,
@@ -2939,14 +3051,38 @@ html.saving * {
                 <span id="volume-value" class="volume-value"></span>
               </span>
             </div>
-            <div class="settings-row settings-row-locked">
-              <span class="settings-label">Accounts</span>
-              <span class="settings-locked-label">Coming soon</span>
+            <div class="settings-row">
+              <span class="settings-label">Profile</span>
+              <button id="profiles-btn" type="button" class="menu-button settings-profile-btn" aria-label="Switch profile"></button>
             </div>
           </div>
           <div class="confirm-buttons settings-buttons">
             <button id="delete-all-data-btn" type="button" class="menu-button danger">Delete Data</button>
             <button id="settings-done-btn" type="button" class="menu-button">Done</button>
+          </div>
+        </div>
+      </div>
+      <!-- Profiles: separate saves side by side -- see main.js's renderProfileList and storage.js -->
+      <div id="profiles-modal" class="modal-overlay stage-overlay profiles-overlay" hidden>
+        <div id="profiles-popup" class="profiles-popup" role="dialog" aria-label="Profiles">
+          <div class="menu-popup-title confirm-popup-title">Profiles</div>
+          <div id="profile-list" class="profile-list pixel-scroll"></div>
+          <div id="profile-list-scrollbar" class="pixel-scrollbar profile-list-scrollbar"></div>
+          <div class="confirm-buttons profiles-buttons">
+            <button id="new-profile-btn" type="button" class="menu-button">New Profile</button>
+            <button id="profiles-back-btn" type="button" class="menu-button">Back</button>
+          </div>
+        </div>
+      </div>
+      <!-- Naming a patch or profile: the confirmation frame with the pencil in its tab -->
+      <div id="name-modal" class="modal-overlay stage-overlay name-overlay" hidden>
+        <div id="name-popup" class="name-popup" role="dialog" aria-labelledby="name-modal-title">
+          <div class="menu-popup-title confirm-popup-title"><span class="name-popup-pencil" aria-hidden="true"></span></div>
+          <p id="name-modal-title" class="confirm-title name-popup-title">Name Your Garden</p>
+          <input id="name-modal-input" type="text" class="name-popup-input" maxlength="24" autocomplete="off" spellcheck="false" />
+          <div class="confirm-buttons name-popup-buttons">
+            <button id="name-modal-cancel-btn" type="button" class="menu-button">Cancel</button>
+            <button id="name-modal-ok-btn" type="button" class="menu-button">Save</button>
           </div>
         </div>
       </div>
@@ -3003,19 +3139,6 @@ html.saving * {
     </div>
     <p id="witch-modal-text"></p>
     <button class="modal-close btn-buy" data-close="witch" type="button">Got it!</button>
-  </div>
-</div>
-
-<div id="name-modal" class="modal-overlay" hidden>
-  <div class="modal">
-    <div class="modal-header">
-      <h2 id="name-modal-title">Name Your Garden</h2>
-    </div>
-    <input id="name-modal-input" type="text" class="text-input" maxlength="24" />
-    <div class="confirm-actions">
-      <button id="name-modal-cancel-btn" type="button" class="btn-secondary">Cancel</button>
-      <button id="name-modal-ok-btn" type="button" class="btn-buy">Save</button>
-    </div>
   </div>
 </div>
 
@@ -12803,27 +12926,26 @@ UI_SPRITE_DEFS.critterDetails = [CRITTER_DETAILS_SPRITE_ROWS, CRITTER_DETAILS_SP
 UI_SPRITE_DEFS.menuFrame = [MENU_FRAME_SPRITE_ROWS, MENU_FRAME_SPRITE_PALETTE];
 UI_SPRITE_DEFS.confirmExitFrame = [CONFIRM_EXIT_FRAME_SPRITE_ROWS, CONFIRM_EXIT_FRAME_SPRITE_PALETTE];
 UI_SPRITE_DEFS.confirmFrame = [CONFIRM_FRAME_SPRITE_ROWS, CONFIRM_FRAME_SPRITE_PALETTE];
-// The Settings popup: the confirmation frame stretched taller (its plain
-// middle rows repeated) to fit the settings rows, with its title tab
-// (native rows 0-15, columns 72-103) widened from the middle to fit
-// "SETTINGS" -- see style.css's .settings-popup.
-const SETTINGS_FRAME_NATIVE_H = 122;
-const SETTINGS_TAB_WIDEN = 20; // native px added on each side of the tab
-function widenFrameTab(row) {
-  const tab = row.slice(72, 104);
-  const mid = tab[16];
-  return row.slice(SETTINGS_TAB_WIDEN, 72) + tab.slice(0, 16) + mid.repeat(SETTINGS_TAB_WIDEN * 2) + tab.slice(16)
-    + row.slice(104, row.length - SETTINGS_TAB_WIDEN);
-}
-UI_SPRITE_DEFS.settingsFrame = [
-  [
-    ...CONFIRM_FRAME_SPRITE_ROWS.slice(0, 16).map(widenFrameTab),
+// The Settings and Profiles popups: the confirmation frame stretched taller
+// (its plain middle rows repeated) to `height` native px, with its title tab
+// (native rows 0-15, columns 72-103) widened from the middle by `tabWiden`
+// on each side to fit a longer title -- see style.css's .settings-popup and
+// .profiles-popup.
+function stretchConfirmFrame(height, tabWiden) {
+  const widen = (row) => {
+    const tab = row.slice(72, 104);
+    return row.slice(tabWiden, 72) + tab.slice(0, 16) + tab[16].repeat(tabWiden * 2) + tab.slice(16)
+      + row.slice(104, row.length - tabWiden);
+  };
+  return [
+    ...CONFIRM_FRAME_SPRITE_ROWS.slice(0, 16).map(widen),
     ...CONFIRM_FRAME_SPRITE_ROWS.slice(16, 50),
-    ...new Array(SETTINGS_FRAME_NATIVE_H - CONFIRM_FRAME_SPRITE_ROWS.length).fill(CONFIRM_FRAME_SPRITE_ROWS[50]),
+    ...new Array(height - CONFIRM_FRAME_SPRITE_ROWS.length).fill(CONFIRM_FRAME_SPRITE_ROWS[50]),
     ...CONFIRM_FRAME_SPRITE_ROWS.slice(50),
-  ],
-  CONFIRM_FRAME_SPRITE_PALETTE,
-];
+  ];
+}
+UI_SPRITE_DEFS.settingsFrame = [stretchConfirmFrame(122, 20), CONFIRM_FRAME_SPRITE_PALETTE];
+UI_SPRITE_DEFS.profilesFrame = [stretchConfirmFrame(140, 20), CONFIRM_FRAME_SPRITE_PALETTE];
 UI_SPRITE_DEFS.menuButton = [MENU_BUTTON_SPRITE_ROWS, MENU_BUTTON_SPRITE_PALETTE];
 UI_SPRITE_DEFS.menuButtonDanger = [MENU_BUTTON_DANGER_SPRITE_ROWS, MENU_BUTTON_DANGER_SPRITE_PALETTE];
 UI_SPRITE_DEFS.saveEmpty = [SAVE_EMPTY_SPRITE_ROWS, SAVE_EMPTY_SPRITE_PALETTE];
@@ -16712,6 +16834,109 @@ function slingPowerFor(ratio) {
 // ============================================================================
 const STORAGE_KEY = 'critterCropProfile.v1';
 
+// --- profiles ------------------------------------------------------------------
+// Several independent profiles can live side by side, so starting over
+// doesn't mean deleting everything. A small index under PROFILES_KEY lists
+// them and remembers which is active; each profile's data lives under its own
+// key. The very first profile keeps the original STORAGE_KEY, so a save from
+// before profiles existed simply becomes "Profile 1".
+const PROFILES_KEY = 'critterCropProfiles.v1';
+const FIRST_PROFILE_ID = 'default';
+// The profile this page loaded (see loadProfile). saveProfile always writes
+// here, even after setActiveProfile picks another one for the next load --
+// so a last autosave on the way out can't land in the newly chosen profile.
+let loadedProfileId = null;
+
+function profileKey(id) {
+  return id === FIRST_PROFILE_ID ? STORAGE_KEY : `${STORAGE_KEY}:${id}`;
+}
+
+function loadIndex() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(PROFILES_KEY));
+    if (parsed && Array.isArray(parsed.profiles) && parsed.profiles.length) return parsed;
+  } catch {
+    // fall through to a fresh index
+  }
+  return { activeId: FIRST_PROFILE_ID, profiles: [{ id: FIRST_PROFILE_ID, name: 'Profile 1', createdAt: Date.now() }] };
+}
+
+function saveIndex(index) {
+  try {
+    localStorage.setItem(PROFILES_KEY, JSON.stringify(index));
+  } catch {
+    // ignore, same as saveProfile
+  }
+}
+
+function readProfileData(id) {
+  try {
+    const raw = localStorage.getItem(profileKey(id));
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Every profile, oldest first, with a little summary for the Profiles list: { id, name, active, level, gardenCount }. */
+function listProfiles() {
+  const index = loadIndex();
+  return index.profiles.map((p) => {
+    const data = readProfileData(p.id);
+    return {
+      id: p.id,
+      name: p.name,
+      active: p.id === (loadedProfileId ?? index.activeId),
+      level: (data && data.level) || 1,
+      gardenCount: (data && Array.isArray(data.gardens)) ? data.gardens.length : 0,
+    };
+  });
+}
+
+function activeProfileName() {
+  const index = loadIndex();
+  const id = loadedProfileId ?? index.activeId;
+  return (index.profiles.find((p) => p.id === id) || index.profiles[0]).name;
+}
+
+/** Adds a fresh, empty profile and returns its id -- it isn't switched to; see setActiveProfile. */
+function createProfile(name) {
+  const index = loadIndex();
+  const id = `p_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+  index.profiles.push({ id, name, createdAt: Date.now() });
+  saveIndex(index);
+  return id;
+}
+
+/** Makes `id` the profile loadProfile/saveProfile use from the next page load on. */
+function setActiveProfile(id) {
+  const index = loadIndex();
+  if (!index.profiles.some((p) => p.id === id)) return;
+  index.activeId = id;
+  saveIndex(index);
+}
+
+function renameProfile(id, name) {
+  const index = loadIndex();
+  const entry = index.profiles.find((p) => p.id === id);
+  if (!entry) return;
+  entry.name = name;
+  saveIndex(index);
+}
+
+/** Deletes a profile and all of its gardens. The active profile can't be deleted -- switch away first. */
+function deleteProfile(id) {
+  const index = loadIndex();
+  if (id === index.activeId || id === loadedProfileId) return;
+  index.profiles = index.profiles.filter((p) => p.id !== id);
+  saveIndex(index);
+  try {
+    localStorage.removeItem(profileKey(id));
+  } catch {
+    // ignore
+  }
+}
+
 function defaultProfile() {
   return {
     version: 1,
@@ -16729,9 +16954,13 @@ function defaultProfile() {
   };
 }
 
+/** The active profile's data (see the profiles section above). */
 function loadProfile() {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const index = loadIndex();
+    saveIndex(index); // writes the index the first time, adopting a pre-profiles save as "Profile 1"
+    loadedProfileId = index.activeId;
+    const raw = localStorage.getItem(profileKey(index.activeId));
     if (!raw) return defaultProfile();
     const parsed = JSON.parse(raw);
     return { ...defaultProfile(), ...parsed };
@@ -16742,15 +16971,17 @@ function loadProfile() {
 
 function saveProfile(profile) {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(profile));
+    localStorage.setItem(profileKey(loadedProfileId ?? loadIndex().activeId), JSON.stringify(profile));
   } catch {
     // ignore
   }
 }
 
+/** Wipes every profile, not just the active one. */
 function deleteAllData() {
   try {
-    localStorage.removeItem(STORAGE_KEY);
+    for (const p of loadIndex().profiles) localStorage.removeItem(profileKey(p.id));
+    localStorage.removeItem(PROFILES_KEY);
   } catch {
     // ignore
   }
@@ -17226,6 +17457,8 @@ document.documentElement.style.setProperty('--menu-button-bg', `url(${getUiSprit
 document.documentElement.style.setProperty('--menu-button-danger-bg', `url(${getUiSprite('menuButtonDanger').toDataURL()})`);
 document.getElementById('menu-popup').style.backgroundImage = `url(${getUiSprite('menuFrame').toDataURL()})`;
 document.getElementById('settings-popup').style.backgroundImage = `url(${getUiSprite('settingsFrame').toDataURL()})`;
+document.getElementById('profiles-popup').style.backgroundImage = `url(${getUiSprite('profilesFrame').toDataURL()})`;
+document.getElementById('name-popup').style.backgroundImage = `url(${getUiSprite('confirmFrame').toDataURL()})`;
 const pauseBtnEl = document.getElementById('pause-btn');
 const pauseIconBg = `url(${getUiSprite('pause').toDataURL()})`;
 const playIconBg = `url(${getUiSprite('play').toDataURL()})`;
@@ -17643,6 +17876,7 @@ function closeModal(overlay) {
   hideModal(overlay);
   if (overlay === critterModal) openCritter = null;
   if (overlay === confirmModal) cancelPendingConfirm();
+  if (overlay === nameModal) cancelNamePrompt();
   if (overlay === backpackModal) {
     hotbarDockEl.classList.remove('hotbar-hover');
     selectedSlot = null;
@@ -19427,6 +19661,7 @@ volumeSliderEl.addEventListener('change', () => {
 });
 
 function openSettings() {
+  profilesBtn.textContent = activeProfileName();
   refreshSoundToggleLabel();
   refreshVolumeSlider();
   showModal(settingsModal);
@@ -19434,6 +19669,104 @@ function openSettings() {
 
 document.getElementById('title-settings-btn').addEventListener('click', openSettings);
 document.getElementById('settings-done-btn').addEventListener('click', () => closeModal(settingsModal));
+
+// --- profiles --------------------------------------------------------------------
+// Separate saves side by side (see storage.js): each has its own Critterpatch
+// level, milestones, settings and gardens. Switching saves the current patch
+// and reloads the page into the chosen profile -- a clean start for every
+// piece of state, rather than trying to unpick it all in place.
+
+const profilesModal = document.getElementById('profiles-modal');
+const profilesBtn = document.getElementById('profiles-btn');
+const profileListEl = document.getElementById('profile-list');
+const syncProfileListScrollbar = attachPixelScrollbar(profileListEl, document.getElementById('profile-list-scrollbar'), 56);
+
+function openProfiles() {
+  hideModal(settingsModal);
+  showModal(profilesModal); // before rendering so the scroll bar can measure the list
+  renderProfileList();
+  profileListEl.scrollTop = 0;
+  syncProfileListScrollbar();
+}
+
+function switchProfile(id) {
+  saveCurrentGarden();
+  setActiveProfile(id);
+  location.reload();
+}
+
+/** One Garden Slot row per profile -- the same art, rename and delete as the title screen's patch list. */
+function renderProfileList() {
+  profileListEl.innerHTML = '';
+  for (const p of listProfiles()) {
+    const row = document.createElement('div');
+    row.className = 'garden-slot' + (p.active ? ' current' : '');
+    row.style.backgroundImage = `url(${getGardenSlotSprite().toDataURL()})`;
+
+    const pickBtn = document.createElement('button');
+    pickBtn.type = 'button';
+    pickBtn.className = 'garden-slot-play';
+    pickBtn.setAttribute('aria-label', p.active ? `${p.name} (playing now)` : `Switch to ${p.name}`);
+    const nameEl = document.createElement('span');
+    nameEl.className = 'garden-slot-name';
+    nameEl.textContent = p.name;
+    const subEl = document.createElement('span');
+    subEl.className = 'garden-slot-date';
+    const patches = `${p.gardenCount} patch${p.gardenCount === 1 ? '' : 'es'}`;
+    subEl.textContent = p.active ? `Playing - Lvl ${p.level}` : `Lvl ${p.level} - ${patches}`;
+    pickBtn.appendChild(nameEl);
+    pickBtn.appendChild(subEl);
+    if (!p.active) {
+      pickBtn.addEventListener('click', () => {
+        hideModal(profilesModal);
+        showConfirm(`Switch to "${p.name}"?\nYour current patch is saved first.`, () => switchProfile(p.id), { onCancel: openProfiles });
+      });
+    }
+    row.appendChild(pickBtn);
+
+    const renameBtn = document.createElement('button');
+    renameBtn.type = 'button';
+    renameBtn.className = 'garden-slot-rename';
+    renameBtn.style.backgroundImage = `url(${getPencilIconSprite().toDataURL()})`;
+    renameBtn.setAttribute('aria-label', `Rename ${p.name}`);
+    renameBtn.addEventListener('click', () => {
+      hideModal(profilesModal);
+      showNamePrompt('Rename Profile', p.name, (name) => {
+        renameProfile(p.id, name);
+        openProfiles();
+      }, openProfiles);
+    });
+    row.appendChild(renameBtn);
+
+    if (!p.active) {
+      const deleteBtn = document.createElement('button');
+      deleteBtn.type = 'button';
+      deleteBtn.className = 'garden-slot-delete';
+      deleteBtn.style.backgroundImage = `url(${getTrashIconSprite().toDataURL()})`;
+      deleteBtn.setAttribute('aria-label', `Delete ${p.name}`);
+      deleteBtn.addEventListener('click', () => {
+        hideModal(profilesModal);
+        showConfirm(`Delete "${p.name}" and all of its patches?\nThis can't be undone.`, () => {
+          deleteProfile(p.id);
+          openProfiles();
+        }, { onCancel: openProfiles });
+      });
+      row.appendChild(deleteBtn);
+    }
+    profileListEl.appendChild(row);
+  }
+  syncProfileListScrollbar();
+}
+
+profilesBtn.addEventListener('click', openProfiles);
+document.getElementById('profiles-back-btn').addEventListener('click', () => {
+  hideModal(profilesModal);
+  openSettings();
+});
+document.getElementById('new-profile-btn').addEventListener('click', () => {
+  hideModal(profilesModal);
+  showNamePrompt('New Profile', `Profile ${listProfiles().length + 1}`, (name) => switchProfile(createProfile(name)), openProfiles);
+});
 
 soundToggleBtn.addEventListener('click', () => {
   profile.soundEnabled = !profile.soundEnabled;
@@ -19444,7 +19777,7 @@ soundToggleBtn.addEventListener('click', () => {
 
 document.getElementById('delete-all-data-btn').addEventListener('click', () => {
   showConfirm(
-    'Delete ALL saved data? This erases every garden and your Critterpatch level permanently. This cannot be undone.',
+    'Delete ALL saved data? This erases every profile, with all their gardens and Critterpatch levels, permanently. This cannot be undone.',
     () => {
       deleteAllData();
       location.reload();
@@ -19536,33 +19869,48 @@ function saveCurrentGarden() {
 }
 
 const nameModal = document.getElementById('name-modal');
+document.querySelector('.name-popup-pencil').style.backgroundImage = `url(${getPencilIconSprite().toDataURL()})`;
 const nameModalTitleEl = document.getElementById('name-modal-title');
 const nameModalInput = document.getElementById('name-modal-input');
 const nameModalOkBtn = document.getElementById('name-modal-ok-btn');
 let nameModalConfirmCallback = null;
 
-function showNamePrompt(title, initialValue, onConfirm) {
+let nameModalCancelCallback = null;
+
+/** `onCancel` runs if the prompt is dismissed any way other than saving a non-empty name. */
+function showNamePrompt(title, initialValue, onConfirm, onCancel = null) {
   nameModalTitleEl.textContent = title;
   nameModalInput.value = initialValue;
   nameModalConfirmCallback = onConfirm;
+  nameModalCancelCallback = onCancel;
   showModal(nameModal);
   nameModalInput.focus();
   nameModalInput.select();
 }
 
+function cancelNamePrompt() {
+  const cb = nameModalCancelCallback;
+  nameModalConfirmCallback = null;
+  nameModalCancelCallback = null;
+  hideModal(nameModal);
+  if (cb) cb();
+}
+
 function submitNamePrompt() {
   const value = nameModalInput.value.trim();
+  if (!value) {
+    cancelNamePrompt();
+    return;
+  }
   const cb = nameModalConfirmCallback;
   nameModalConfirmCallback = null;
+  nameModalCancelCallback = null;
   hideModal(nameModal);
-  if (cb && value) cb(value);
+  if (cb) cb(value);
 }
 
 nameModalOkBtn.addEventListener('click', submitNamePrompt);
-document.getElementById('name-modal-cancel-btn').addEventListener('click', () => {
-  nameModalConfirmCallback = null;
-  hideModal(nameModal);
-});
+document.getElementById('name-modal-cancel-btn').addEventListener('click', cancelNamePrompt);
 nameModalInput.addEventListener('keydown', (e) => {
   if (e.key === 'Enter') submitNamePrompt();
 });
