@@ -319,31 +319,110 @@ body {
   outline: 2px solid var(--focus);
 }
 
+/* --- settings ---------------------------------------------------------------
+   In the Menu Pop Up's style: the confirmation frame stretched to native
+   176x122 (2x: 352x244, see icons.js's settingsFrame), its Menu Buttons, and
+   a pixel slider for the volume. Inside .screen-stage like the Menu, above it
+   but below the confirmation that Delete Data raises. */
+.settings-overlay { z-index: 40; }
+
+.settings-popup {
+  position: relative;
+  width: 352px;
+  height: 244px;
+  background-repeat: no-repeat;
+  background-size: 352px 244px;
+  image-rendering: pixelated;
+  font-family: 'Monogram', 'Courier New', monospace;
+  color: #e8ddbf;
+}
+
+.settings-rows {
+  position: absolute;
+  left: 24px;
+  top: 52px;
+  width: 304px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
 .settings-row {
+  height: 32px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 6px 0;
-  font-size: 16px;
+}
+
+.settings-label {
+  font-size: 28px;
+  line-height: 22px;
+  text-transform: uppercase;
+}
+
+.settings-toggle {
+  width: 120px;
+  background-size: 120px 32px;
 }
 
 .volume-control {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
 }
 
+/* A dark pixel track with an orange square thumb (the Menu Button colors). */
 .volume-slider {
-  width: 140px;
-  accent-color: #f09628;
+  -webkit-appearance: none;
+  appearance: none;
+  width: 136px;
+  height: 20px;
+  margin: 0;
+  background: transparent;
   cursor: pointer;
 }
 
+.volume-slider::-webkit-slider-runnable-track {
+  height: 8px;
+  background: #3c4337;
+  border: 2px solid #282d25;
+}
+
+.volume-slider::-moz-range-track {
+  height: 4px;
+  background: #3c4337;
+  border: 2px solid #282d25;
+}
+
+.volume-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px;
+  height: 20px;
+  margin-top: -8px;
+  background: #f09628;
+  border: 2px solid #282d25;
+  box-shadow: inset 0 2px #fcd74b, inset 0 -2px #de4f31;
+}
+
+.volume-slider::-moz-range-thumb {
+  width: 10px;
+  height: 16px;
+  border-radius: 0;
+  background: #f09628;
+  border: 2px solid #282d25;
+  box-shadow: inset 0 2px #fcd74b, inset 0 -2px #de4f31;
+}
+
+.volume-slider:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
 .volume-value {
-  min-width: 3.5em;
+  min-width: 48px;
   text-align: right;
-  font-family: 'Pokemon Classic', 'Courier New', monospace;
-  font-size: 9px;
+  font-size: 24px;
+  line-height: 18px;
 }
 
 .settings-row-locked {
@@ -351,12 +430,12 @@ body {
 }
 
 .settings-locked-label {
-  font-family: 'Pokemon Classic', 'Courier New', monospace;
-  font-weight: 600;
-  font-size: 9px;
+  font-size: 22px;
+  line-height: 18px;
   text-transform: uppercase;
-  letter-spacing: 0.03em;
 }
+
+.settings-popup .settings-buttons { top: 192px; }
 
 /* --- garden HUD -------------------------------------------------------------
    Figma "Coin Hud" (4370:484, top-left) and "Clock Hud" (4447:1343,
@@ -1788,6 +1867,15 @@ button.cauldron-slot:focus-visible {
   background-image: var(--art-selected);
 }
 
+.cd-swatch:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.cd-swatch:disabled.selected {
+  opacity: 1;
+}
+
 .cd-swatch:focus-visible {
   outline: 2px solid var(--focus);
   outline-offset: 3px;
@@ -2609,12 +2697,14 @@ html.saving * {
   height: 422px;
 }
 
+/* 164 native wide rather than the panel's full 178, so the rows stop short of
+   the scroll bar (.left-scrollbar, x336) instead of running under it. */
 .milestone-row {
   position: relative;
-  width: 356px;
+  width: 328px;
   height: 48px;
   background-image: var(--milestone-row-bg);
-  background-size: 356px 48px;
+  background-size: 328px 48px;
   image-rendering: pixelated;
   font-family: 'Monogram', 'Courier New', monospace;
   text-align: center;
@@ -2833,6 +2923,33 @@ html.saving * {
           </div>
         </div>
       </div>
+      <!-- Settings: the Menu Pop Up's confirmation frame, stretched (see icons.js's settingsFrame) -->
+      <div id="settings-modal" class="modal-overlay stage-overlay settings-overlay" hidden>
+        <div id="settings-popup" class="settings-popup" role="dialog" aria-label="Settings">
+          <div class="menu-popup-title confirm-popup-title">Settings</div>
+          <div class="settings-rows">
+            <div class="settings-row">
+              <span class="settings-label">Sound</span>
+              <button id="sound-toggle-btn" type="button" class="menu-button settings-toggle">On</button>
+            </div>
+            <div class="settings-row">
+              <label class="settings-label" for="volume-slider">Volume</label>
+              <span class="volume-control">
+                <input id="volume-slider" class="volume-slider" type="range" min="0" max="100" step="5" />
+                <span id="volume-value" class="volume-value"></span>
+              </span>
+            </div>
+            <div class="settings-row settings-row-locked">
+              <span class="settings-label">Accounts</span>
+              <span class="settings-locked-label">Coming soon</span>
+            </div>
+          </div>
+          <div class="confirm-buttons settings-buttons">
+            <button id="delete-all-data-btn" type="button" class="menu-button danger">Delete Data</button>
+            <button id="settings-done-btn" type="button" class="menu-button">Done</button>
+          </div>
+        </div>
+      </div>
       <div id="confirm-modal" class="modal-overlay stage-overlay confirm-overlay" hidden>
         <div id="confirm-popup" class="confirm-popup" role="alertdialog" aria-labelledby="confirm-title" aria-describedby="confirm-message">
           <div class="menu-popup-title confirm-popup-title">!</div>
@@ -2875,31 +2992,6 @@ html.saving * {
       <div id="side-list-frame" class="side-list-frame" hidden></div>
       <div id="side-scrollbar" class="pixel-scrollbar side-scrollbar"></div>
     </aside>
-  </div>
-</div>
-
-<div id="settings-modal" class="modal-overlay" hidden>
-  <div class="modal">
-    <div class="modal-header">
-      <h2>Settings</h2>
-      <button class="modal-close" data-close="settings" aria-label="Close">&times;</button>
-    </div>
-    <div class="settings-row">
-      <span>Sound</span>
-      <button id="sound-toggle-btn" type="button" class="btn-secondary">On</button>
-    </div>
-    <div class="settings-row">
-      <label for="volume-slider">Volume</label>
-      <span class="volume-control">
-        <input id="volume-slider" class="volume-slider" type="range" min="0" max="100" step="5" />
-        <span id="volume-value" class="volume-value"></span>
-      </span>
-    </div>
-    <div class="settings-row settings-row-locked">
-      <span>Accounts</span>
-      <span class="settings-locked-label">Coming soon</span>
-    </div>
-    <button id="delete-all-data-btn" type="button" class="danger-btn">Delete All Data</button>
   </div>
 </div>
 
@@ -6865,23 +6957,23 @@ const PINKSHARD_STAGE3_PALETTE = { B: '#682754', C: '#be5381', D: '#df999b', E: 
 // 16x16, generated by tools/png2sprite.py
 const PINKSHARD_FINAL_ROWS = [
   '.......AAA......',
-  '......ABGA......',
-  '.....ABEEA......',
-  '.....ABECA......',
-  '..AA.ABCEBA.AA..',
-  '.ABBAABECBAABBA.',
-  '.ABGDADCCDADGBA.',
-  '.ABECDCDECBCEBA.',
-  '..ADECBECDBBDA..',
-  '...ADBCDECBDA...',
-  '..FFAAAAAAAAFF..',
-  '................',
-  '................',
+  '......ABHA......',
+  '.....ABDDA......',
+  '.....ABDCA......',
+  '..AA.ABCDGA.AA..',
+  '.ABBAABDCGAABBA.',
+  '.ABHBABCCBABHBA.',
+  '.ABDCBCBDCBCDBA.',
+  '..ABDCGDCBBBBA..',
+  '...ABGCBDCBBA...',
+  '..EEAAAAAAAAEE..',
+  '...EFFFFFFFFE...',
+  '......EEEE......',
   '................',
   '................',
   '................',
 ];
-const PINKSHARD_FINAL_PALETTE = { A: '#282d25', B: '#682754', C: '#be5381', D: '#972f54', E: '#df999b', F: '#af8b60', G: '#fdf8f4' };
+const PINKSHARD_FINAL_PALETTE = { A: '#282d25', B: '#972f54', C: '#be5381', D: '#df999b', E: '#af8b60', F: '#927149', G: '#682754', H: '#fdf8f4' };
 
 // 16x16, generated by tools/png2sprite.py
 const DEWBELL_STAGE1_ROWS = [
@@ -9438,31 +9530,90 @@ function drawToolIcon(ctx, tool, inkColor, accentColor) {
   ctx.fillStyle = inkColor;
   if (tool && tool.startsWith('seed:')) drawSeedBag(ctx, accentColor);
   else if (tool && tool.startsWith('crop:')) drawHarvestedCrop(ctx, accentColor, tool.slice('crop:'.length));
-  else if (tool && tool.startsWith('tonic:')) drawTonicBottle(ctx, accentColor);
+  else if (tool && tool.startsWith('tonic:')) ctx.drawImage(getTonicIconSprite(tool.slice('tonic:'.length)), 0, 0);
 }
 
-/** A round-bottomed potion flask: ink outline/cork, liquid in the tonic's swatch color. */
-function drawTonicBottle(ctx, accent) {
-  // cork + neck
-  ctx.fillRect(6, 1, 4, 2);
-  ctx.fillRect(7, 3, 2, 3);
-  // flask body outline
-  ctx.fillRect(5, 6, 6, 1);
-  ctx.fillRect(3, 7, 2, 1);
-  ctx.fillRect(11, 7, 2, 1);
-  ctx.fillRect(2, 8, 1, 4);
-  ctx.fillRect(13, 8, 1, 4);
-  ctx.fillRect(3, 12, 2, 1);
-  ctx.fillRect(11, 12, 2, 1);
-  ctx.fillRect(5, 13, 6, 1);
-  // liquid
-  ctx.fillStyle = accent;
-  ctx.fillRect(4, 8, 8, 4);
-  ctx.fillRect(5, 12, 6, 1);
-  ctx.fillRect(5, 7, 6, 1);
-  // glint
-  ctx.fillStyle = 'rgba(255,255,255,0.7)';
-  ctx.fillRect(5, 9, 1, 2);
+// Hand-drawn art from Assets/Icons/Rose Tonic.png (Figma Item Icons "Rose
+// Tonic", node 4552:1358). Every tonic uses this flask: the Rose Tonic as
+// drawn, the others with its three liquid shades (D light, E mid, F dark)
+// re-hued to the tonic's own swatch -- see tonicLiquidPalette.
+const ROSE_TONIC_ICON_ROWS = [
+  '................',
+  '................',
+  '......AAAA......',
+  '.....ABCCCA.....',
+  '......ABCA......',
+  '......ABCA......',
+  '.....ABDDDA.....',
+  '....ABDDDDDA....',
+  '...ABEEEEEEFA...',
+  '..ADEEEEFEEEFA..',
+  '..ADEEFEEEEEFA..',
+  '...ADEEEFEEFA...',
+  '....ADEEEEFA....',
+  '.....AAAAAA.....',
+  '................',
+  '................',
+];
+const ROSE_TONIC_ICON_PALETTE = { A: '#282d25', B: '#fdf8f4', C: '#c8b7c0', D: '#df999b', E: '#be5381', F: '#972f54' };
+
+function iconHexToHsl(hex) {
+  const n = parseInt(hex.slice(1), 16);
+  const r = (n >> 16) / 255, g = ((n >> 8) & 255) / 255, b = (n & 255) / 255;
+  const max = Math.max(r, g, b), min = Math.min(r, g, b);
+  const l = (max + min) / 2;
+  if (max === min) return { h: 0, s: 0, l };
+  const d = max - min;
+  const s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+  const h = max === r ? (g - b) / d + (g < b ? 6 : 0) : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
+  return { h: h * 60, s, l };
+}
+
+function iconHslToHex({ h, s, l }) {
+  const k = (n) => (n + h / 30) % 12;
+  const a = s * Math.min(l, 1 - l);
+  const f = (n) => Math.round(255 * (l - a * Math.max(-1, Math.min(k(n) - 3, 9 - k(n), 1))));
+  return `#${[f(0), f(8), f(4)].map((v) => v.toString(16).padStart(2, '0')).join('')}`;
+}
+
+/**
+ * The flask's three liquid shades for `tonicId`. The Rose Tonic keeps the
+ * drawn pinks; any other tonic takes its swatch's hue, and the same
+ * light/mid/dark steps the pinks have -- with the mid shade sitting as far
+ * below the swatch as the rose's does below its own, clamped so a very pale
+ * (Snow) or very dark (Midnight) tonic still reads against the outline.
+ */
+function tonicLiquidPalette(tonicId) {
+  if (tonicId === 'rose' || !TONICS[tonicId]) return {};
+  const rose = { D: iconHexToHsl(ROSE_TONIC_ICON_PALETTE.D), E: iconHexToHsl(ROSE_TONIC_ICON_PALETTE.E), F: iconHexToHsl(ROSE_TONIC_ICON_PALETTE.F) };
+  const swatch = iconHexToHsl(TONICS[tonicId].swatch);
+  const midL = Math.min(0.74, Math.max(0.32, swatch.l - (iconHexToHsl(TONICS.rose.swatch).l - rose.E.l)));
+  const palette = {};
+  for (const key of ['D', 'E', 'F']) {
+    const l = Math.min(0.94, Math.max(0.22, midL + rose[key].l - rose.E.l));
+    const s = Math.min(1, swatch.s * (rose[key].s / rose.E.s));
+    palette[key] = iconHslToHex({ h: swatch.h, s, l });
+  }
+  return palette;
+}
+
+const tonicIconCache = {};
+function getTonicIconSprite(tonicId) {
+  if (tonicIconCache[tonicId]) return tonicIconCache[tonicId];
+  const palette = { ...ROSE_TONIC_ICON_PALETTE, ...tonicLiquidPalette(tonicId) };
+  const c = document.createElement('canvas');
+  c.width = 16;
+  c.height = 16;
+  const sctx = c.getContext('2d');
+  ROSE_TONIC_ICON_ROWS.forEach((row, y) => {
+    for (let x = 0; x < row.length; x++) {
+      if (row[x] === '.') continue;
+      sctx.fillStyle = palette[row[x]];
+      sctx.fillRect(x, y, 1, 1);
+    }
+  });
+  tonicIconCache[tonicId] = c;
+  return c;
 }
 
 
@@ -12652,6 +12803,27 @@ UI_SPRITE_DEFS.critterDetails = [CRITTER_DETAILS_SPRITE_ROWS, CRITTER_DETAILS_SP
 UI_SPRITE_DEFS.menuFrame = [MENU_FRAME_SPRITE_ROWS, MENU_FRAME_SPRITE_PALETTE];
 UI_SPRITE_DEFS.confirmExitFrame = [CONFIRM_EXIT_FRAME_SPRITE_ROWS, CONFIRM_EXIT_FRAME_SPRITE_PALETTE];
 UI_SPRITE_DEFS.confirmFrame = [CONFIRM_FRAME_SPRITE_ROWS, CONFIRM_FRAME_SPRITE_PALETTE];
+// The Settings popup: the confirmation frame stretched taller (its plain
+// middle rows repeated) to fit the settings rows, with its title tab
+// (native rows 0-15, columns 72-103) widened from the middle to fit
+// "SETTINGS" -- see style.css's .settings-popup.
+const SETTINGS_FRAME_NATIVE_H = 122;
+const SETTINGS_TAB_WIDEN = 20; // native px added on each side of the tab
+function widenFrameTab(row) {
+  const tab = row.slice(72, 104);
+  const mid = tab[16];
+  return row.slice(SETTINGS_TAB_WIDEN, 72) + tab.slice(0, 16) + mid.repeat(SETTINGS_TAB_WIDEN * 2) + tab.slice(16)
+    + row.slice(104, row.length - SETTINGS_TAB_WIDEN);
+}
+UI_SPRITE_DEFS.settingsFrame = [
+  [
+    ...CONFIRM_FRAME_SPRITE_ROWS.slice(0, 16).map(widenFrameTab),
+    ...CONFIRM_FRAME_SPRITE_ROWS.slice(16, 50),
+    ...new Array(SETTINGS_FRAME_NATIVE_H - CONFIRM_FRAME_SPRITE_ROWS.length).fill(CONFIRM_FRAME_SPRITE_ROWS[50]),
+    ...CONFIRM_FRAME_SPRITE_ROWS.slice(50),
+  ],
+  CONFIRM_FRAME_SPRITE_PALETTE,
+];
 UI_SPRITE_DEFS.menuButton = [MENU_BUTTON_SPRITE_ROWS, MENU_BUTTON_SPRITE_PALETTE];
 UI_SPRITE_DEFS.menuButtonDanger = [MENU_BUTTON_DANGER_SPRITE_ROWS, MENU_BUTTON_DANGER_SPRITE_PALETTE];
 UI_SPRITE_DEFS.saveEmpty = [SAVE_EMPTY_SPRITE_ROWS, SAVE_EMPTY_SPRITE_PALETTE];
@@ -12669,7 +12841,7 @@ UI_SPRITE_DEFS.tonicRow = [FLORA_ROW_SPRITE_ROWS, { ...FLORA_ROW_SPRITE_PALETTE,
 // repeated.
 const MILESTONE_ROW_CAP = 5; // columns at each end that stay as drawn
 const MILESTONE_ROW_NOTCH = [55, 65]; // the gold notch's columns in the 120px art
-const MILESTONE_ROW_NATIVE_W = 178;
+const MILESTONE_ROW_NATIVE_W = 164; // stops short of the panel's scroll bar (native x168+)
 function stretchMilestoneRow(width) {
   return MILESTONE_ROW_SPRITE_ROWS.map((row) => {
     const fill = row[MILESTONE_ROW_CAP];
@@ -17053,6 +17225,7 @@ document.getElementById('menu-btn').style.backgroundImage = `url(${getUiSprite('
 document.documentElement.style.setProperty('--menu-button-bg', `url(${getUiSprite('menuButton').toDataURL()})`);
 document.documentElement.style.setProperty('--menu-button-danger-bg', `url(${getUiSprite('menuButtonDanger').toDataURL()})`);
 document.getElementById('menu-popup').style.backgroundImage = `url(${getUiSprite('menuFrame').toDataURL()})`;
+document.getElementById('settings-popup').style.backgroundImage = `url(${getUiSprite('settingsFrame').toDataURL()})`;
 const pauseBtnEl = document.getElementById('pause-btn');
 const pauseIconBg = `url(${getUiSprite('pause').toDataURL()})`;
 const playIconBg = `url(${getUiSprite('play').toDataURL()})`;
@@ -17792,10 +17965,10 @@ function refreshCritterModal() {
   document.getElementById('critter-species').textContent = critter.displayName();
   document.getElementById('critter-level').textContent = critter.level;
 
-  // Labels are for telling your own critters apart, so a visitor has none to pick.
-  document.getElementById('critter-label-row').hidden = !resident;
-  critterLabelSwatchesEl.hidden = !resident;
-  const label = critter.label || 'none';
+  // Labels are for telling your own critters apart, so a visitor shows
+  // "None" with the markers locked -- still there, so the popup keeps its layout.
+  const label = (resident && critter.label) || 'none';
+  for (const btn of critterLabelSwatchesEl.children) btn.disabled = !resident;
   document.getElementById('critter-label-name').textContent = `${label[0].toUpperCase()}${label.slice(1)}`;
   for (const btn of critterLabelSwatchesEl.children) {
     const selected = btn.dataset.color === label;
@@ -19260,6 +19433,7 @@ function openSettings() {
 }
 
 document.getElementById('title-settings-btn').addEventListener('click', openSettings);
+document.getElementById('settings-done-btn').addEventListener('click', () => closeModal(settingsModal));
 
 soundToggleBtn.addEventListener('click', () => {
   profile.soundEnabled = !profile.soundEnabled;
