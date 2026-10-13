@@ -16310,6 +16310,8 @@ class Game {
    * The Shift+Enter cheat window (see main.js's openCheatPrompt). Returns
    * { ok, message } -- `message` is what the window shows back.
    *  - "night": skips straight to nightfall.
+   *  - "sunshine": skips to the next morning.
+   *  - "imrich": 1000 coins.
    *  - "candy": 10 Candy, the only way to get any.
    */
   runCheat(rawCode) {
@@ -16320,6 +16322,18 @@ class Game {
       this.elapsed += DAY_MS - t; // the first moment of full night
       this.onLog('Cheat: the sun sets in an instant...');
       return { ok: true, message: 'Night falls!' };
+    }
+    if (code === 'sunshine') {
+      const t = this.elapsed % CYCLE_MS;
+      if (t < DAY_MS - TWILIGHT_MS) return { ok: false, message: "It's already day!" };
+      this.elapsed += CYCLE_MS - t; // the first moment of the next morning
+      this.onLog('Cheat: the sun comes right back up!');
+      return { ok: true, message: 'Good morning!' };
+    }
+    if (code === 'imrich') {
+      this._addMoney(1000);
+      this.onLog('Cheat: 1000 coins added.');
+      return { ok: true, message: '1000 coins added!' };
     }
     if (code === 'candy') {
       if (!this.addItem(CANDY_ITEM, 10)) return { ok: false, message: 'No room for Candy!' };
