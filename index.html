@@ -4091,6 +4091,23 @@ class World {
     return best;
   }
 
+  /** Nearest tile of `type` (e.g. a pond tile for a hurt Sunsquish to heal in), or null. */
+  nearestTileOfType(fromX, fromY, type) {
+    let best = null;
+    let bestDist = Infinity;
+    for (const row of this.grid) {
+      for (const tile of row) {
+        if (tile.type !== type) continue;
+        const d = (tile.gx * TILE_SIZE + TILE_SIZE / 2 - fromX) ** 2 + (tile.gy * TILE_SIZE + TILE_SIZE / 2 - fromY) ** 2;
+        if (d < bestDist) {
+          bestDist = d;
+          best = tile;
+        }
+      }
+    }
+    return best;
+  }
+
   /** Rain: waters every tilled tile in the garden at once, planted or not. */
   waterAllSoil(nowMs) {
     for (const row of this.grid) {
@@ -4218,6 +4235,7 @@ const TONIC_COMPAT = {
   ghogup: ['azure', 'rose', 'violet', 'snow', 'lagoon'],
   blamite: ['azure', 'verdant', 'gold', 'crimson', 'midnight'],
   shellbub: ['azure', 'rose', 'gold', 'snow', 'violet'],
+  sunsquish: ['crimson', 'lagoon', 'violet', 'verdant', 'midnight'],
 };
 
 function speciesLikesTonic(species, tonicId) {
@@ -4280,7 +4298,7 @@ const SPECIES = {
   },
   serpup: {
     displayName: 'Serpup',
-    evolvedDisplayName: 'Embercoil',
+    evolvedDisplayName: 'Slithera',
     bio: "A sharp-eyed opportunist with a taste for SunBun -- literally. Serpups circle a garden with resident SunBuns and won't move in until they've caught one for themselves.",
     visitRequirement: (world, critters, level) => level >= 6,
     visitRequirementLabel: 'Prowls in once your Critterpatch reaches Level 6.',
@@ -4289,7 +4307,7 @@ const SPECIES = {
     signatureCrop: CropType.RADISH,
     evolutionCatalystCrops: [CropType.RADISH],
     xpMultiplier: 1.6,
-    perkDescription: "Evolved perk: Predator's Instinct -- 25% chance to deal double Critterslinging damage.",
+    perkDescription: "Evolved perk: Predator's Instinct -- 25% chance to deal double Critterslinging damage. As a Slithera it spits venom instead of fire, and anything hit by two globs bursts.",
     // A predator's ritual meal is another critter, not a crop: click a resident
     // Serpup, then a Dewshrew, to send it hunting -- see Game._needsSummonPrey/Critter.startSummonHunt.
     summonPrereq: { kind: 'critter', species: 'dewshrew', count: 1 },
@@ -4484,7 +4502,32 @@ const SPECIES = {
       evolveMultiplier: 1.4,
       growth2: { SPD: 3, ATK: 5, DEF: 11, STA: 9 },
     },
+  },  sunsquish: {
+    displayName: 'Sunsquish',
+    evolvedDisplayName: 'Sunsplash',
+    bio: "A bright little squid that zips around a garden faster than anything else in it. It only comes to big ponds, and it heals right up whenever it's back in the water.",
+    visitRequirement: (world, critters, level) => level >= 11 && world.countTilesOfType(TileType.WATER) >= 20,
+    visitRequirementLabel: 'Needs your Critterpatch at Level 11 and 20 water tiles in the garden to visit.',
+    residentDiet: [{ kind: 'crop', cropType: CropType.PONDLILY, count: 5 }],
+    residentRequirementLabel: 'Needs to eat 5 Pondlilies to move in.',
+    signatureCrop: CropType.PONDLILY,
+    evolutionCatalystCrops: [CropType.PONDLILY],
+    // The fastest critter in the patch -- and it heals quickly in water (see _updateSunsquishWater).
+    moveSpeedMultiplier: 1.9,
+    evolvedMoveSpeedMultiplier: 2.2,
+    xpMultiplier: 1.4,
+    visitXp: 200,
+    residentXp: 400,
+    perkDescription: 'Evolved perk: Riptide -- even faster on its feet.',
+    stats: {
+      // All speed, not much armor -- it makes up for it by healing in the pond.
+      base: { SPD: 40, ATK: 18, DEF: 12, STA: 20 },
+      growth1: { SPD: 4.5, ATK: 2, DEF: 1.5, STA: 2.5 },
+      evolveMultiplier: 1.4,
+      growth2: { SPD: 11, ATK: 5, DEF: 3.5, STA: 6 },
+    },
   },
+
   blamite: {
     displayName: 'Blamite',
     evolvedDisplayName: 'Blastmite',
@@ -4592,6 +4635,8 @@ const DRIVEN_OFF_SPEED_FACTOR = 1.8; // a beaten visiting predator bolts for the
 const HEAL_DELAY_MS = 30000;
 const HURT_HUD_MS = 3000; // how long the overhead bars stay up after losing health -- see _updateHurtHud
 const HEAL_HP_PER_SEC = 2;
+const SUNSQUISH_WATER_HEAL_PER_SEC = 12; // see Critter._updateSunsquishWater
+const SUNSQUISH_SEEK_WATER_BELOW = 0.7; // health fraction under which a wandering Sunsquish makes for the pond
 const ENERGY_PER_HEALTH = 5;
 
 const BOUNCE_DISTANCE_MIN = 16;
@@ -4990,6 +5035,15 @@ class Critter {
     return this.species === 'serpup' || this.species === 'gruburn' || this.species === 'blamite' || (this.species === 'sunbun' && this.evolved);
   }
 
+  /**
+   * True for shots that stick in a Sludge Critter, two of them making it burst
+   * (see _collideWithZombie): a Blamite's crystal shards, and a Slithera's
+   * (evolved Serpup's) venom -- the same shot in green.
+   */
+  _shootsShards() {
+    return !!SPECIES[this.species].shootsCrystals || (this.species === 'serpup' && this.evolved);
+  }
+
   update(dt, world, critters, level, zombies, junkCount) {
     this._updateHurtHud(dt);
     if (this._slingFrozen) return;
@@ -5003,6 +5057,7 @@ class Critter {
       return;
     }
     if (this.state !== CritterState.REST) this._updateHealthRegen(dt);
+    if (this.species === 'sunsquish') this._updateSunsquishWater(dt, world);
     if (this.species === 'hoverchick') this._updateHoverchickFloat(dt);
     if (this.species === 'ghogup') this._updateGhostFade(dt);
     this.stateTimer += dt;
@@ -5070,6 +5125,14 @@ class Critter {
     );
     this.health += healAmount;
     this.energy -= healAmount * ENERGY_PER_HEALTH;
+  }
+
+  /** A Sunsquish standing in a pond tile heals quickly, for free -- no waiting after a hit, no energy spent. */
+  _updateSunsquishWater(dt, world) {
+    const tile = world.tileAtPixel(this.x, this.y);
+    this._inWater = !!tile && tile.type === TileType.WATER;
+    this._waterHealing = this._inWater && this.health < this.maxHealth;
+    if (this._waterHealing) this.health = Math.min(this.maxHealth, this.health + (SUNSQUISH_WATER_HEAL_PER_SEC / 1000) * dt);
   }
 
   _updateAppear(dt, world) {
@@ -5456,8 +5519,9 @@ class Critter {
     zombie.health = drivesOff ? 1 : Math.max(0, zombie.health - dmgToZombie);
     // A Blamite's crystal shard sticks in a Night Slug; the second one to land sets
     // them both off, and the slug goes up in Pinkshard crystals -- see Game._updateZombies.
-    if (spec.shootsCrystals && !isVisitor) {
+    if (this._shootsShards() && !isVisitor) {
       zombie.crystalMarks = (zombie.crystalMarks || 0) + 1;
+      zombie.crystalVenom = this.species === 'serpup'; // drawn (and bursts) green -- see render.js's venomPalette
       // Which way the shard was flying, so it's drawn sticking out of the side it went in.
       const hitDx = zombie.x - this.x;
       const hitDy = zombie.y - this.y;
@@ -5466,7 +5530,7 @@ class Critter {
       if (zombie.crystalMarks >= 2) {
         zombie.health = 0;
         zombie.crystalExploded = true;
-        zombie.shardBonus = this.evolved ? 1 : 0; // Rich Vein
+        zombie.shardBonus = this.evolved && this.species === 'blamite' ? 1 : 0; // Rich Vein
       }
     }
     this.health = Math.max(0, this.health - dmgToSelf);
@@ -5559,7 +5623,9 @@ class Critter {
     if (!this.destination) {
       this.wanderPause -= dt;
       if (this.wanderPause <= 0) {
-        const tile = world.randomPlotTile();
+        // A hurt Sunsquish heads for the nearest pond to heal (see _updateSunsquishWater).
+        const hurtSquish = this.species === 'sunsquish' && !this._inWater && this.health < this.maxHealth * SUNSQUISH_SEEK_WATER_BELOW;
+        const tile = (hurtSquish && world.nearestTileOfType(this.x, this.y, TileType.WATER)) || world.randomPlotTile();
         this.destination = { x: tile.gx * TILE_SIZE + TILE_SIZE / 2, y: tile.gy * TILE_SIZE + TILE_SIZE / 2 };
       }
     }
@@ -8313,41 +8379,125 @@ const DEWBACK_SPRITE_ROWS = [
 ];
 const DEWBACK_SPRITE_PALETTE = { A: '#282d25', B: '#2a90da', C: '#3656c7', D: '#6bc8d0', E: '#fdf8f4', F: '#972f54', G: '#d5c18b', H: '#be5381' };
 
-// 19x13, generated by tools/png2sprite.py
-const SHELLBUB_RESIDENT_SPRITE_ROWS = [
-  '.....AAAAAAA.......',
-  '....ACHCHCHCA......',
-  '...AHHCCCCCHDA.....',
-  '...ADCHHCHHFDAAAA..',
-  '..ADCCDCHCDFAEBBBA.',
-  '..ACCDCCDDCAEBBAABA',
-  '..ADFDDFDDFAEBAJKAA',
-  '..AFFFFFFFFAEBAJKBA',
-  '.AEAAAAAAAAEBBBBBBA',
-  'AGBEEEEEEEEBBGAAAA.',
-  'AAGBBBBBBBBBGA.....',
-  '..AGGGAAAAGGGA.....',
-  '...AGIIA..AGIIA....',
-];
-const SHELLBUB_RESIDENT_SPRITE_PALETTE = { A: '#282d25', B: '#b7e68f', C: '#923b28', D: '#cc5d2f', E: '#285c38', F: '#652525', G: '#2ead3a', H: '#e49b66', I: '#2a7c3e', J: '#fdf8f4', K: '#a0273a' };
 
-// 19x13, generated by tools/png2sprite.py
-const SHELLBUB_VISIT_SPRITE_ROWS = [
-  '.....AAAAAAA.......',
-  '....ABBBDBBBA......',
-  '...ABDDDDDDDBA.....',
-  '...ABBDBBBDBBAAAA..',
-  '..ABBBDBBBDBAECCCA.',
-  '..ADBDBDBDBAECCAACA',
-  '..ABDBBBDBBAECAGHAA',
-  '..ABDBBBDBBAECAGHCA',
-  '.AFAAAAAAAAFCCCCCCA',
-  'AECFFFFFFFFCCEAAAA.',
-  'AAECCCCCCCCCEA.....',
-  '..AEEEAAAAEEEA.....',
-  '...AEFFA..AEFFA....',
+
+// 22x16, generated by tools/png2sprite.py
+const SHELLBUB_RESIDENT_SPRITE_ROWS = [
+  '...............AAAAA..',
+  '..............ABBBBBA.',
+  '.............ABBBAABBA',
+  '.....AAAAAAA.ABBAGHABA',
+  '....ACCCDCCCAABBAGHABA',
+  '...ACDDDDDDDCABBBBBBBA',
+  '...ACCDCCCDCCABBBAAAA.',
+  '..ACCCDCCCDCCABBA.....',
+  '..ADCDCDCDCCABBBA.....',
+  '..ACDCCCDCCCABBBA.....',
+  '..ACDCCCDCCABBBA......',
+  '.AEAAAAAAAAEBBBA......',
+  'AFIEEEEEEEEBBFA.......',
+  'AAFBBBBBBBBBFA........',
+  '..AFFFAAAAFFFA........',
+  '...AFEEA..AFEEA.......',
 ];
-const SHELLBUB_VISIT_SPRITE_PALETTE = { A: '#282d25', B: '#e49b66', C: '#e8ddbf', D: '#cc5d2f', E: '#d5c18b', F: '#af8b60', G: '#fdf8f4', H: '#a0273a' };
+const SHELLBUB_RESIDENT_SPRITE_PALETTE = { A: '#282d25', B: '#b7e68f', C: '#e49b66', D: '#cc5d2f', E: '#2a7c3e', F: '#80c742', G: '#fdf8f4', H: '#a0273a', I: '#e8ddbf' };
+
+// 22x16, generated by tools/png2sprite.py
+const SHELLBUB_VISIT_SPRITE_ROWS = [
+  '...............AAAAA..',
+  '..............ABBBBBA.',
+  '.............ABBBAABBA',
+  '.....AAAAAAA.ABBABGABA',
+  '....ACCCDCCCAABBABGABA',
+  '...ACDDDDDDDCABBBBBBBA',
+  '...ACCDCCCDCCABBBAAAA.',
+  '..ACCCDCCCDCAEBBA.....',
+  '..ADCDCDCDCAEBBBA.....',
+  '..ACDCCCDCCAEBBBA.....',
+  '..ACDCCCDCCAEBBA......',
+  '.AFAAAAAAAAFBBBA......',
+  'AEBFFFFFFFFBBEA.......',
+  'AAEBBBBBBBBBEA........',
+  '..AEEEAAAAEEEA........',
+  '...AEFFA..AEFFA.......',
+];
+const SHELLBUB_VISIT_SPRITE_PALETTE = { A: '#282d25', B: '#e8ddbf', C: '#e49b66', D: '#cc5d2f', E: '#d5c18b', F: '#af8b60', G: '#a0273a' };
+
+// 26x23, generated by tools/png2sprite.py
+const SLITHERA_SPRITE_ROWS = [
+  '.............AA...........',
+  '.............ADA..........',
+  '.............ADDAAAA......',
+  '.........AA...AABBBBA.....',
+  '.........ADA..ABBBBBBAA...',
+  '.........ADDAABBBAAABBBAA.',
+  '..........AABDBBAEEDABBBBA',
+  '...........ABDBBBEEDBBBBBA',
+  '........AAABBBDBBBBBBBBCA.',
+  '.......ADDABBBBAACCCCCAA..',
+  '........ADABBBBDAAAAAA....',
+  '.........AABBBBCDA........',
+  '...........ABBBDA.........',
+  '...........ABBDBCAAA......',
+  '.......A....ADBBBCCCA.....',
+  '......ADA..A.AABBBBCCA....',
+  '.......AAAADA..ABBBCCA....',
+  '.A..A..ABBDAAAADBBBCCA....',
+  'ABAADAABBDBBBBBDBBBCCA....',
+  'ABBBAABBBDBBBBBBDBCCA.....',
+  '.ABBBBBCAACBBBCCCDCA......',
+  '..ACCCCA..ACCCCCCAA.......',
+  '...AAAA....AAAAAA.........',
+];
+const SLITHERA_SPRITE_PALETTE = { A: '#282d25', B: '#de4f31', C: '#f89a90', D: '#a0273a', E: '#e8ddbf' };
+
+// 20x19, generated by tools/png2sprite.py
+const SUNSQUISH_RESIDENT_SPRITE_ROWS = [
+  '......AAAAAA........',
+  '....AADDDCCBAA......',
+  '...ADDBBBBBBBBA.....',
+  '..ADBBBCCBBBBBBA....',
+  '..ADBBBCCBBBBBBA....',
+  '..ABCCBBBBBBBBBCAAA.',
+  '.ADBCCBBBBBBBBBBABB.',
+  '.ADBCBBBBBAAAABBCBE.',
+  '.ACBBBBBBADFFDABBBE.',
+  '.ACBBCBBBADFFFABBBE.',
+  '.ABBBCCBBCAAAACBBBE.',
+  '..ABBCCBBBCCCCBBCBE.',
+  '...ABBBBBBBBBBBCACC.',
+  '..ABCCCBBBBBCCCCCAA.',
+  '.ABBCBBCBCCBBBCBBA..',
+  '.ABCAABBCAACBBACBA..',
+  'AGBA.ABCA..ACBAABGA.',
+  '.AA...AGA..AGA..AA..',
+  '.......A....A.......',
+];
+const SUNSQUISH_RESIDENT_SPRITE_PALETTE = { A: '#282d25', B: '#fcd74b', C: '#f09628', D: '#fdf8f4', E: '#de4f31', F: '#a0273a', G: '#cc5d2f' };
+
+// 20x19, generated by tools/png2sprite.py
+const SUNSQUISH_VISIT_SPRITE_ROWS = [
+  '......AAAAAA........',
+  '....AADDDBBBAA......',
+  '...ADDBBBBBBBBA.....',
+  '..ADBBBBBBBBBBBA....',
+  '..ADBBBBBBBBBBBA....',
+  '..ABBBBBBBBBBBBCAAA.',
+  '.ADBBBBBBBBBBBBBABBA',
+  '.ADBBBBBBBAAAABBCBEA',
+  '.ACBBBBBBADFFDABBBEA',
+  '.ACBBBBBBADFFFABBBEA',
+  '.ABBBBBBBCAAAACBBBEA',
+  '..ABBBBBBBCCCCBBCBEA',
+  '...ABBBBBBBBBBBCACCA',
+  '..ABCCCBBBBBCCCCCAA.',
+  '.ABBCBBCBCCBBBCBBA..',
+  '.ABCAABBCAACBBACBA..',
+  'ACBA.ABCA..ACBAABCA.',
+  '.AA...ACA..ACA..AA..',
+  '.......A....A.......',
+];
+const SUNSQUISH_VISIT_SPRITE_PALETTE = { A: '#282d25', B: '#c8b7c0', C: '#a17da9', D: '#fdf8f4', E: '#745791', F: '#a0273a' };
 
 const CRITTER_SPRITE_ART = {
   sunbun: {
@@ -8360,6 +8510,8 @@ const CRITTER_SPRITE_ART = {
     w: 16, h: 15, feetInset: 12,
     resident: { rows: SERPUP_RESIDENT_SPRITE_ROWS, palette: SERPUP_RESIDENT_SPRITE_PALETTE },
     visit: { rows: SERPUP_VISIT_SPRITE_ROWS, palette: SERPUP_VISIT_SPRITE_PALETTE },
+    // Evolves into the Slithera (Assets/Critters/Slithera R.png) -- its own, bigger art.
+    evolved: { rows: SLITHERA_SPRITE_ROWS, palette: SLITHERA_SPRITE_PALETTE, w: 26, h: 23, feetInset: 20 },
   },
   dawdlesnail: {
     w: 16, h: 15, feetInset: 12,
@@ -8404,10 +8556,16 @@ const CRITTER_SPRITE_ART = {
     evolved: { rows: DEWBACK_SPRITE_ROWS, palette: DEWBACK_SPRITE_PALETTE, w: 38, h: 21, feetInset: 18 },
   },
   shellbub: {
-    w: 19, h: 13, feetInset: 10,
+    w: 22, h: 16, feetInset: 13,
     resident: { rows: SHELLBUB_RESIDENT_SPRITE_ROWS, palette: SHELLBUB_RESIDENT_SPRITE_PALETTE },
     visit: { rows: SHELLBUB_VISIT_SPRITE_ROWS, palette: SHELLBUB_VISIT_SPRITE_PALETTE },
+  },  // Fast and fond of water -- see Critter._updateSunsquishWater.
+  sunsquish: {
+    w: 20, h: 19, feetInset: 16,
+    resident: { rows: SUNSQUISH_RESIDENT_SPRITE_ROWS, palette: SUNSQUISH_RESIDENT_SPRITE_PALETTE },
+    visit: { rows: SUNSQUISH_VISIT_SPRITE_ROWS, palette: SUNSQUISH_VISIT_SPRITE_PALETTE },
   },
+
 };
 
 const ART_TIER_FACTOR = { visit: 1, resident: 1, evolved: 1.15 };
@@ -8430,10 +8588,11 @@ function critterTier(critter) {
 // species, then by which art the sprite comes from.
 const TONIC_MAIN_KEYS = {
   sunbun: { resident: ['B', 'C', 'D'], evolved: ['B', 'C', 'D', 'G'] },
-  serpup: { resident: ['B', 'D', 'E'] },
+  serpup: { resident: ['B', 'D', 'E'], evolved: ['B', 'C', 'D'] },
   dawdlesnail: { resident: ['C', 'D', 'E'] },
   dewshrew: { resident: ['B', 'C', 'D'], evolved: ['B', 'C', 'D'] },
-  shellbub: { resident: ['B', 'G', 'I', 'E'] },
+  shellbub: { resident: ['B', 'F', 'E'] },
+  sunsquish: { resident: ['B', 'C', 'G'] },
   toad: { resident: ['B', 'C', 'D'] },
   hoverchick: { resident: ['B', 'C'] },
   gruburn: { resident: ['B', 'D'] },
@@ -8749,6 +8908,7 @@ function renderCritter(ctx, critter, camera) {
   if (evolveT !== null) drawMoveInFireworks(ctx, px, fireworkOriginY, evolveT);
   else if (introT !== null) drawMoveInFireworks(ctx, px, fireworkOriginY, introT);
   if (critter.state === CritterState.REST) drawRestZs(ctx, px, py - 18);
+  if (critter._waterHealing) drawWaterHeal(ctx, px, py - 14);
   ctx.globalAlpha = 1;
 }
 
@@ -8936,14 +9096,25 @@ const SHARD_EXPLOSION_7_SPRITE_ROWS = [
 ];
 const SHARD_EXPLOSION_7_SPRITE_PALETTE = { B: '#be5381', C: '#972f54', D: '#df999b' };
 
+// A Slithera's venom (see Critter._shootsShards): the Blamite's shard and burst
+// art with its pinks swapped for green.
+const VENOM_RECOLOR = { '#be5381': '#b7e68f', '#df999b': '#80c742', '#f89a90': '#80c742', '#972f54': '#2a7c3e' };
+function venomPalette(palette) {
+  const out = {};
+  for (const [k, hex] of Object.entries(palette)) out[k] = VENOM_RECOLOR[hex] || hex;
+  return out;
+}
+
 const blamiteShotSprites = {};
-function getBlamiteShotSprite(kind) {
-  if (!blamiteShotSprites[kind]) {
-    blamiteShotSprites[kind] = kind === 'diagonal'
-      ? buildSprite(BLAMITE_SHOT_DIAGONAL_SPRITE_ROWS, BLAMITE_SHOT_DIAGONAL_SPRITE_PALETTE)
-      : buildSprite(BLAMITE_SHOT_STRAIGHT_SPRITE_ROWS, BLAMITE_SHOT_STRAIGHT_SPRITE_PALETTE);
+function getBlamiteShotSprite(kind, venom = false) {
+  const key = venom ? `venom-${kind}` : kind;
+  if (!blamiteShotSprites[key]) {
+    const [rows, palette] = kind === 'diagonal'
+      ? [BLAMITE_SHOT_DIAGONAL_SPRITE_ROWS, BLAMITE_SHOT_DIAGONAL_SPRITE_PALETTE]
+      : [BLAMITE_SHOT_STRAIGHT_SPRITE_ROWS, BLAMITE_SHOT_STRAIGHT_SPRITE_PALETTE];
+    blamiteShotSprites[key] = buildSprite(rows, venom ? venomPalette(palette) : palette);
   }
-  return blamiteShotSprites[kind];
+  return blamiteShotSprites[key];
 }
 
 /**
@@ -8954,16 +9125,16 @@ function getBlamiteShotSprite(kind) {
  * angles, mirrored when the line falls to the right instead. Used both for
  * the shot in flight and for a shard left stuck in a Night Slug.
  */
-function drawCrystalShard(ctx, px, py, dirX, dirY) {
+function drawCrystalShard(ctx, px, py, dirX, dirY, venom = false) {
   const octant = ((Math.round(Math.atan2(dirY, dirX) / (Math.PI / 4)) % 8) + 8) % 8;
   ctx.save();
   ctx.translate(Math.round(px), Math.round(py));
   if (octant % 2 === 1) {
     if (octant === 1 || octant === 5) ctx.scale(-1, 1); // down-right / up-left
-    ctx.drawImage(getBlamiteShotSprite('diagonal'), -8, -8);
+    ctx.drawImage(getBlamiteShotSprite('diagonal', venom), -8, -8);
   } else {
     if (octant === 2 || octant === 6) ctx.rotate(Math.PI / 2); // straight up or down
-    ctx.drawImage(getBlamiteShotSprite('straight'), -6, -3);
+    ctx.drawImage(getBlamiteShotSprite('straight', venom), -6, -3);
   }
   ctx.restore();
 }
@@ -8980,14 +9151,18 @@ const SHARD_EXPLOSION_FRAMES = [
   [SHARD_EXPLOSION_7_SPRITE_ROWS, SHARD_EXPLOSION_7_SPRITE_PALETTE],
 ];
 const SHARD_EXPLOSION_MS = 560; // 80ms a frame
-const shardExplosionSprites = [];
+const shardExplosionSprites = {};
 
 /** Plays each explosion's frames in turn, every frame centred on the spot the slug stood (the middle frames are a little bigger than 16x16). */
 function renderShardExplosions(ctx, explosions, camera) {
   for (const e of explosions) {
     const i = Math.min(SHARD_EXPLOSION_FRAMES.length - 1, Math.floor((e.age / SHARD_EXPLOSION_MS) * SHARD_EXPLOSION_FRAMES.length));
-    if (!shardExplosionSprites[i]) shardExplosionSprites[i] = buildSprite(...SHARD_EXPLOSION_FRAMES[i]);
-    const sprite = shardExplosionSprites[i];
+    const key = e.venom ? `venom-${i}` : i;
+    if (!shardExplosionSprites[key]) {
+      const [rows, palette] = SHARD_EXPLOSION_FRAMES[i];
+      shardExplosionSprites[key] = buildSprite(rows, e.venom ? venomPalette(palette) : palette);
+    }
+    const sprite = shardExplosionSprites[key];
     ctx.drawImage(sprite, Math.round(e.x - camera.x - sprite.width / 2), Math.round(e.y - camera.y - sprite.height / 2));
   }
 }
@@ -9004,8 +9179,8 @@ function drawFireball(ctx, critter, px, py) {
       dirY = dy / dist;
     }
   }
-  if (critter.species === 'blamite') {
-    drawCrystalShard(ctx, px, py, dirX, dirY);
+  if (critter.species === 'blamite' || (critter.species === 'serpup' && critter.evolved)) {
+    drawCrystalShard(ctx, px, py, dirX, dirY, critter.species === 'serpup');
     return;
   }
 
@@ -9029,6 +9204,26 @@ function drawFireball(ctx, critter, px, py) {
   ctx.arc(px, py, 2.5, 0, Math.PI * 2);
   ctx.fill();
   ctx.restore();
+}
+
+/** Little green pluses drifting up off a Sunsquish while the pond heals it -- see Critter._updateSunsquishWater. */
+function drawWaterHeal(ctx, px, py) {
+  const CYCLE_MS = 1100;
+  const dx = [-5, 1, 6];
+  const now = performance.now();
+  for (let i = 0; i < 3; i++) {
+    const phase = ((now + i * (CYCLE_MS / 3)) % CYCLE_MS) / CYCLE_MS;
+    const x = Math.round(px + dx[i]);
+    const y = Math.round(py - phase * 10);
+    ctx.globalAlpha = phase < 0.2 ? phase / 0.2 : 1 - (phase - 0.2) / 0.8;
+    ctx.fillStyle = '#282d25';
+    ctx.fillRect(x - 2, y - 1, 5, 3);
+    ctx.fillRect(x - 1, y - 2, 3, 5);
+    ctx.fillStyle = '#b7e68f';
+    ctx.fillRect(x - 1, y, 3, 1);
+    ctx.fillRect(x, y - 1, 1, 3);
+  }
+  ctx.globalAlpha = 1;
 }
 
 function drawRestZs(ctx, px, py) {
@@ -9205,7 +9400,7 @@ function renderZombie(ctx, zombie, camera) {
   // went in (see Critter._collideWithZombie) -- one more and it blows.
   if (zombie.crystalMarks > 0 && zombie.crystalDir) {
     const { x: dirX, y: dirY } = zombie.crystalDir;
-    drawCrystalShard(ctx, px - dirX * 5, py - 6 - dirY * 5, dirX, dirY);
+    drawCrystalShard(ctx, px - dirX * 5, py - 6 - dirY * 5, dirX, dirY, zombie.crystalVenom);
   }
 
   ctx.globalAlpha = 1;
@@ -9506,6 +9701,7 @@ const EGG_SPECIES_PALETTE = {
   ghogup: { B: '#b7e68f', C: '#fdf8f4', D: '#2ead3a' },
   dewshrew: { B: '#2a90da', C: '#6bc8d0', D: '#3656c7' },
   shellbub: { B: '#cc5d2f', C: '#b7e68f', D: '#923b28' },
+  sunsquish: { B: '#fcd74b', C: '#f09628', D: '#cc5d2f' },
 };
 
 const eggSpriteCache = {};
@@ -16504,19 +16700,30 @@ class Game {
    * up by hovering like a coin pile (a drop with kind 'pinkshard').
    */
   _explodeZombieIntoShards(zombie) {
-    const amount = PINKSHARD_DROP_RANGE[0] + Math.floor(Math.random() * (PINKSHARD_DROP_RANGE[1] - PINKSHARD_DROP_RANGE[0] + 1))
-      + (zombie.shardBonus || 0);
-    // The crystals appear once the burst animation has played out -- see _updateShardExplosions.
-    this.shardExplosions.push({ x: zombie.x, y: zombie.y - 6, age: 0, drop: { x: zombie.x, y: zombie.y, amount, kind: 'pinkshard' } });
+    // A Slithera's venom burst looks the same (in green) but leaves the usual
+    // coin pile, not Pinkshard crystals -- those are the Blamite's thing.
+    let drop;
+    if (zombie.crystalVenom) {
+      const coins = Math.floor(Math.random() * (MAX_ZOMBIE_COIN_DROP + 1));
+      drop = coins > 0 ? { x: zombie.x, y: zombie.y, amount: coins } : null;
+    } else {
+      const amount = PINKSHARD_DROP_RANGE[0] + Math.floor(Math.random() * (PINKSHARD_DROP_RANGE[1] - PINKSHARD_DROP_RANGE[0] + 1))
+        + (zombie.shardBonus || 0);
+      drop = { x: zombie.x, y: zombie.y, amount, kind: 'pinkshard' };
+    }
+    // The drop appears once the burst animation has played out -- see _updateShardExplosions.
+    this.shardExplosions.push({ x: zombie.x, y: zombie.y - 6, age: 0, venom: !!zombie.crystalVenom, drop });
     this._triggerShake(8);
     this.onSound('sling-hit');
-    this.onLog(`A ${zombie.displayName()} shatters into Pinkshard crystals!`);
+    this.onLog(zombie.crystalVenom
+      ? `A ${zombie.displayName()} bursts from the venom!`
+      : `A ${zombie.displayName()} shatters into Pinkshard crystals!`);
   }
 
   _updateShardExplosions(dt) {
     if (this.shardExplosions.length === 0) return;
     for (const e of this.shardExplosions) e.age += dt;
-    for (const e of this.shardExplosions) if (e.age >= SHARD_EXPLOSION_MS) this.coinDrops.push(e.drop);
+    for (const e of this.shardExplosions) if (e.age >= SHARD_EXPLOSION_MS && e.drop) this.coinDrops.push(e.drop);
     this.shardExplosions = this.shardExplosions.filter((e) => e.age < SHARD_EXPLOSION_MS);
   }
 
