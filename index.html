@@ -10471,6 +10471,33 @@ function getSlotFrameSprite(kind) {
   return c;
 }
 
+const slotNotchCache = {};
+/**
+ * Just the count notch of a stackable slot's frame ('standardX'/'selectedX'):
+ * the pixels where it differs from the plain frame. Laid over the item icon
+ * so a full-width icon (the seed packets) sits behind the notch and its
+ * number, the same as smaller icons that never reach that corner.
+ */
+function getSlotNotchSprite(kind) {
+  if (slotNotchCache[kind]) return slotNotchCache[kind];
+  const base = kind === 'selectedX' ? 'selected' : 'standard';
+  const c = document.createElement('canvas');
+  c.width = 40;
+  c.height = 40;
+  const sctx = c.getContext('2d');
+  sctx.drawImage(getSlotFrameSprite(kind), 0, 0);
+  const notch = sctx.getImageData(0, 0, 40, 40);
+  const plain = getSlotFrameSprite(base).getContext('2d').getImageData(0, 0, 40, 40).data;
+  for (let i = 0; i < notch.data.length; i += 4) {
+    if (notch.data[i] === plain[i] && notch.data[i + 1] === plain[i + 1] && notch.data[i + 2] === plain[i + 2] && notch.data[i + 3] === plain[i + 3]) {
+      notch.data[i + 3] = 0;
+    }
+  }
+  sctx.putImageData(notch, 0, 0);
+  slotNotchCache[kind] = c;
+  return c;
+}
+
 // Hand-drawn pixel art from Assets/UI/Hotbar2.png -- the bar backdrop
 // sitting behind the 9 hotbar slots (the backpack slot at the end sits
 // outside it -- see main.js's renderHotbar). Baked straight at its 456x56
@@ -17980,6 +18007,13 @@ function buildSlotButton(area, index) {
     btn.appendChild(iconCanvas);
 
     if (!isToolItem(slotData.item)) {
+      const notch = document.createElement('canvas');
+      notch.className = 'slot-frame';
+      notch.width = 40;
+      notch.height = 40;
+      notch.getContext('2d').drawImage(getSlotNotchSprite(isActive ? 'selectedX' : 'standardX'), 0, 0);
+      btn.appendChild(notch);
+
       const countLabel = document.createElement('span');
       countLabel.className = 'slot-count';
       countLabel.textContent = String(slotData.count);
