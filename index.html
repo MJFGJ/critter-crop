@@ -132,7 +132,6 @@ body {
 #app.title-mode .coin-hud,
 #app.title-mode .clock-hud,
 #app.title-mode .left-panel,
-#app.title-mode .top-right-controls,
 #app.title-mode .zoom-controls,
 #app.title-mode .hotbar-dock {
   display: none;
@@ -809,16 +808,6 @@ canvas#screen:focus-visible {
 .screen-icon-btn:focus-visible {
   outline: 2px solid var(--focus);
   outline-offset: 1px;
-}
-
-/* Just below the clock HUD (8px margin + its 32px height + 8px gap). */
-.top-right-controls {
-  position: absolute;
-  top: 48px;
-  right: 8px;
-  display: flex;
-  gap: 6px;
-  z-index: 16;
 }
 
 
@@ -2913,12 +2902,6 @@ html.saving * {
           <span id="clock-period" class="clock-hud-period">AM</span>
         </div>
         <button id="menu-btn" type="button" class="clock-hud-btn" aria-label="Menu"></button>
-      </div>
-
-      <div class="top-right-controls">
-        <button id="samwise-btn" type="button" class="screen-icon-btn" aria-label="Samwise">
-          <canvas class="icon" id="icon-samwise" width="16" height="16"></canvas>
-        </button>
       </div>
 
       <div class="zoom-controls">
@@ -13825,16 +13808,6 @@ function drawBackpackIcon(ctx) {
   ctx.drawImage(getBackpackIconSprite(), 2, 1); // centered in the 16x16 icon canvas
 }
 
-function drawSamwiseIcon(ctx, color) {
-  ctx.clearRect(0, 0, 16, 16);
-  ctx.fillStyle = color;
-  ctx.fillRect(2, 3, 12, 8);
-  ctx.fillRect(4, 11, 2, 2);
-  ctx.clearRect(5, 6, 1, 2);
-  ctx.clearRect(9, 6, 1, 2);
-  ctx.clearRect(6, 8, 4, 1);
-}
-
 function drawZoomIcon(ctx, color, mode) {
   ctx.clearRect(0, 0, 16, 16);
   ctx.strokeStyle = color;
@@ -15605,7 +15578,7 @@ class Game {
       + "Here are some daisy and radish seeds. To grow them, pick a seed in your hotbar and click a dirt tile to "
       + "plant it. Then water it with the Watering Can. Keep it watered while it grows, or it will dry out!\n\n"
       + 'Blooming plants bring new critters to visit. If you run out of seeds before anything blooms, click my '
-      + 'button in the top right corner for a few more.',
+      + 'tab on the left panel (the one with my hat) for a few more.',
     );
   }
 
@@ -17928,7 +17901,6 @@ function redrawTopBarIcons() {
   updatePauseIcon();
   drawZoomIcon(document.getElementById('icon-zoom-in').getContext('2d'), '#f0ead8', 'in');
   drawZoomIcon(document.getElementById('icon-zoom-out').getContext('2d'), '#f0ead8', 'out');
-  drawSamwiseIcon(document.getElementById('icon-samwise').getContext('2d'), '#f0ead8');
 }
 
 /** Shows Play while the player has paused time themselves, Pause otherwise. */
@@ -18318,11 +18290,6 @@ function renderSamwiseLog() {
   samwiseLogListEl.scrollTop = samwiseLogListEl.scrollHeight;
   syncLeftScrollbar();
 }
-
-document.getElementById('samwise-btn').addEventListener('click', () => {
-  game.samwiseResupply();
-  setLeftTab('samwise');
-});
 
 function showModal(el) {
   el.hidden = false;
@@ -18786,7 +18753,12 @@ document.documentElement.style.setProperty('--milestone-row-bg', `url(${getUiSpr
 document.documentElement.style.setProperty('--trophy-bg', `url(${getUiSprite('trophy').toDataURL()})`);
 for (const el of leftTabEls) {
   el.style.setProperty('--tab-icon', `url(${getUiSprite(LEFT_TAB_ICONS[el.dataset.tab]).toDataURL()})`);
-  el.addEventListener('click', () => setLeftTab(el.dataset.tab));
+  el.addEventListener('click', () => {
+    // Opening Samwise's tab also tops the player back up on starter seeds
+    // if they've run out before growing their first daisy/radish.
+    if (el.dataset.tab === 'samwise') game.samwiseResupply();
+    setLeftTab(el.dataset.tab);
+  });
 }
 
 function setLeftTab(tab) {
